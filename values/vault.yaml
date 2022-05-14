@@ -1,0 +1,11 @@
+server:
+  affinity: ""
+# Minikube have one node so HA can't be done and not needed. With this entry we could also pass consul deployment.
+  ha:
+    enabled: false
+  ingress:
+    enabled: true
+# Vault can not use custom prefixes so you have to use root to be able to use ingress
+    hosts:
+    - paths:
+        - /

@@ -1,0 +1,78 @@
+---
+# Disabled unuseful content from helm
+grafana:
+  enabled: False
+kubeEtcd:
+  enabled: False
+kubeControllerManager:
+  enabled: False
+kubeScheduler:
+  enabled: False
+
+
+additionalPrometheusRulesMap:
+  custom-rule:
+    groups:
+      - name: general.rules
+        rules:
+          - alert: ContainerMemoryUsage
+            expr: (sum(container_memory_usage_bytes{pod!=""}) by (pod, namespace) / sum(cluster:namespace:pod_memory:active:kube_pod_container_resource_limits{pod!=""}) by (pod, namespace) * 100) > 10
+            for: 60s
+            labels:
+              severity: warning
+            annotations:
+              summary: "High memory usage on :: {{ $labels.pod }}"
+              description: "Pod memory usage is higher than 10%\n  Namespace: {{ $labels.namespace }}\n Pod: {{ $labels.pod }}\n Usage: {{ $value }}\n"
+alertmanager:
+  ingress:
+    enabled: true
+    annotations:
+      nginx.ingress.kubernetes.io/auth-type: basic
+      nginx.ingress.kubernetes.io/auth-secret: auth-user
+      nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required'
+    paths:
+      - /alertmanager
+# Secret for basic auth on ingress inspired from this thread
+# https://github.com/prometheus-community/helm-charts/issues/1255#issuecomment-925009435
+  extraSecret:
+    name: "auth-user"
+    data:
+      auth: |
+        admin:$2b$12$QAthWmzxE6euatHg1E.XMOkXAbxE4jz86UzvmpF9dtWxSSEYL9th.
+  alertmanagerSpec:
+    routePrefix : alertmanager/
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['job']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'null'
+      routes:
+        - match:
+            alertname: Watchdog
+          receiver: 'null'
+        - match:
+            alertname: ContainerMemoryUsage
+          receiver: 'event_alarm'
+    receivers:
+      - name: 'null'
+      - name: 'event_alarm'
+        webhook_configs:
+          - url: 'https://hazelcast-cloud-challenge.herokuapp.com/challenge_events'
+            send_resolved: true
+prometheus:
+  ingress:
+    enabled: true
+    annotations:
+      nginx.ingress.kubernetes.io/auth-type: basic
+      nginx.ingress.kubernetes.io/auth-secret: auth-user
+      nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required'
+    paths:
+      - /prometheus
+  prometheusSpec:
+    routePrefix : prometheus/
+
+
